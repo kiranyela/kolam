@@ -10,7 +10,7 @@ A generative Kolam pattern
 var link;
 var nlink;
 var idx;
-var pg;
+var pg; // Off-screen graphics buffer for the Kolam
 var bgcolor;
 var kolam;
 var gui_kolam;
@@ -18,34 +18,35 @@ var gui_kolam;
 /**/
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  console.log("I think the window dimensions are "+windowWidth+" x "+windowHeight);
-  // make Dat.GUI control with four options
+  
+  bgcolor = color(10, 20, 40); // A nice dark blue
+
+  // Create the Kolam object to hold our parameters
   kolam = new Kolam();
+  
+  // Set up Dat.GUI controls
   gui_kolam = new dat.GUI();
-  gui_kolam.add(kolam, 'tsize', 30, 60).name('Size').onChange(function() {
-    setupTiles();
-  });
-  gui_kolam.add(kolam, 'margin', 2, 200).name('Margin').onChange(function() {
-    setupTiles();
-  });  
-  gui_kolam.add(kolam, 'tnumber').name('Tiles').min(3).max(20).step(1).onChange(function() {
-    setupTiles();
-  });
-  gui_kolam.add(kolam, 'rotation').name('Rotation').min(0).max(2*Math.PI).step(QUARTER_PI/4).onChange(function() {
-    setupTiles();
-  });  
+  gui_kolam.add(kolam, 'tsize', 30, 80).name('Size').onChange(setupTiles);
+  gui_kolam.add(kolam, 'margin', 2, 200).name('Margin').onChange(setupTiles);  
+  gui_kolam.add(kolam, 'tnumber').name('Tiles').min(3).max(20).step(1).onChange(setupTiles);
+  gui_kolam.add(kolam, 'rotation').name('Rotation').min(0).max(2 * Math.PI).step(QUARTER_PI / 4);  
   gui_kolam.add(kolam, 'refreshRate').name('Refresh Rate').min(10).max(200).step(10);
 
-
-  bgcolor = color(random(50), random(50), random(50));
+  // Initial setup
   setupTiles();
   configTiles();
 }
 
 /**/
 function draw() {
-  if (idx <= 1) drawTile();
+  background(bgcolor); // Clear the canvas every frame
+
+  // Only update the off-screen graphic if the animation is running
+  if (idx <= 1) {
+    drawTile();
+  }
   
+  // Draw the off-screen graphic to the main canvas
   push();
   translate(width / 2, height / 2);
   rotate(kolam.rotation);
@@ -53,48 +54,38 @@ function draw() {
   image(pg, 0, 0);
   pop();
 
+  // Periodically generate a new pattern
   if (frameCount % kolam.refreshRate == 0) {
     configTiles();
   }
 }
 
-/**/
+// Object to hold all the variables for our Kolam sketch
 function Kolam() {
   this.tsize = 45;
   this.margin = 5;
   this.tnumber = 5;
-  this.refreshRate = 100;
+  this.refreshRate = 120; // Slightly slower refresh rate
   this.rotation = QUARTER_PI;
 }
 
-/**/
+// This function is called when the browser window is resized
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  setupTiles();
+  setupTiles(); // Re-initialize the tiles to fit the new size
 }
 
-/**/
+// Sets up the off-screen buffer and the link arrays
 function setupTiles() {
-  background(bgcolor);
-  rectMode(CORNERS);
-  textSize(32);
-  fill(255);
-  text('Kolam', 30, 60);
-  textSize(12);
-  text('"Kolam is a form of drawing that is drawn by using rice flour, chalk, chalk powder or rock powder, \
-often using naturally or synthetically colored powders, in Sri Lanka, the Indian states of Tamil Nadu,\
-Karnataka, Telangana, Andhra Pradesh, Kerala and some parts of Goa, Maharashtra as well as Indonesia, \
-Malaysia, Thailand and a few other Asian countries. A Kolam is a geometrical line drawing composed of \
-curved loops, drawn around a grid pattern of dots." \n\nTaken as-is from Wikipedia - Kolam', 30, 70, 400, 200);
-  text('No Rights Reserved; Ported from a Processing Sketch by Bárbara Almeida', 30, windowHeight - 30);
+  // Create the graphics buffer where the Kolam pattern will be drawn
   pg = createGraphics(
     kolam.tsize * kolam.tnumber + 2 * kolam.margin,
     kolam.tsize * kolam.tnumber + 2 * kolam.margin
-    );
+  );
 
   link = [];
   nlink = [];
-  // populate the array with 1s
+  // Populate the arrays with 1s
   for (var i = 0; i < (kolam.tnumber + 1); i++) {
     var pushThis = [];
     for (var j = 0; j < (kolam.tnumber + 1); j++) {
@@ -105,26 +96,23 @@ curved loops, drawn around a grid pattern of dots." \n\nTaken as-is from Wikiped
   }
 }
 
+// Configures the links for a new, symmetrical pattern
 function configTiles() {
   idx = 0;
   var i, j;
 
-  // update links
+  // Update links
   for (i = 0; i < link.length; i++) {
     for (j = 0; j < link[0].length; j++) {
-      link[i][j] = nlink[i][j]
+      link[i][j] = nlink[i][j];
     }
   }
 
-  // create new links
+  // Create new links with 8-way symmetry
   var limit = random(0.4, 0.7);
-
   for (i = 0; i < nlink.length; i++) {
     for (j = 0; j < nlink.length / 2; j++) {
-
-      // randomly link or unlink
-      let l = 0;
-      if (random(1) > limit) l = 1;
+      let l = (random(1) > limit) ? 1 : 0; // Randomly link or unlink
 
       nlink[i][j] = l;
       nlink[i][nlink.length - j - 1] = l;
@@ -138,6 +126,7 @@ function configTiles() {
   }
 }
 
+// Draws the actual Kolam pattern into the off-screen buffer (pg)
 function drawTile() {
   pg.background(bgcolor);
   pg.noFill();
@@ -147,6 +136,7 @@ function drawTile() {
   for (var i = 0; i < kolam.tnumber; i++) {
     for (var j = 0; j < kolam.tnumber; j++) {
       if ((i + j) % 2 == 0) {
+        // Interpolate between the old and new patterns for a smooth animation
         var top_left = kolam.tsize / 2 * lerp(link[i][j], nlink[i][j], idx);
         var top_right = kolam.tsize / 2 * lerp(link[i + 1][j], nlink[i + 1][j], idx);
         var bottom_right = kolam.tsize / 2 * lerp(link[i + 1][j + 1], nlink[i + 1][j + 1], idx);
